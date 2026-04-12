@@ -52,6 +52,7 @@ jobs:
         run: |
           set -euxo pipefail
           cd "${SCRIPT_DIR}"
+          chmod +x ./gradlew
           ./gradlew run ${OUTPUT_DIR}
 
       - name: Commit changes
