@@ -77,8 +77,15 @@ fun x(basePathString: String) {
     log.info("deleting previous version...")
     Files.walkFileTree(outputPath, object : SimpleFileVisitor<Path>() {
         override fun visitFile(file: Path?, attrs: BasicFileAttributes?): FileVisitResult {
-            if (file != null && file.name != "bundle.json" && !file.isHidden() && !file.name.startsWith(".")) {
+            if (file != null && file.name != "bundle.json") {
                 Files.deleteIfExists(file)
+            }
+            return FileVisitResult.CONTINUE
+        }
+
+        override fun preVisitDirectory(dir: Path?, attrs: BasicFileAttributes?): FileVisitResult {
+            if (dir != null && (dir.isHidden() || dir.name.startsWith("."))) {
+                return FileVisitResult.SKIP_SUBTREE
             }
             return FileVisitResult.CONTINUE
         }

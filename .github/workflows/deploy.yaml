@@ -46,7 +46,7 @@ jobs:
           rm -rf "${OUTPUT_DIR}"
           mkdir -p "${OUTPUT_DIR}"
           AUTH_URL="${PRIVATE_REPO_URL/https:\/\//https:\/\/x-access-token:${PRIVATE_REPO_TOKEN}@}"
-          git clone --depth 1 "${AUTH_URL}" "${OUTPUT_DIR}"
+          git clone "${AUTH_URL}" "${OUTPUT_DIR}"
 
       - name: Run script
         run: |
@@ -54,6 +54,7 @@ jobs:
           cd "${SCRIPT_DIR}"
           chmod +x ./gradlew
           ./gradlew run --args="${OUTPUT_DIR}"
+          rm -rf "${OUTPUT_DIR}/bundle_p*"
 
       - name: Commit changes
         run: |
