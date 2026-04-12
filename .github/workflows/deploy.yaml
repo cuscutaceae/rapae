@@ -54,7 +54,9 @@ jobs:
           cd "${SCRIPT_DIR}"
           chmod +x ./gradlew
           ./gradlew run --args="${OUTPUT_DIR}"
-          rm -rf "${OUTPUT_DIR}/bundle_p*"
+          cd "${OUTPUT_DIR}"
+          ls
+          rm -rf bundle_p*
 
       - name: Commit changes
         run: |
