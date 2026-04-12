@@ -1,0 +1,80 @@
+name: sync output
+
+on:
+  push:
+    branches:
+      - "**"
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-output
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    env:
+      SCRIPT_DIR: /home/runner/script
+      OUTPUT_DIR: /home/runner/output
+      TARGET_BRANCH: generated-output
+
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Copy repo to ~/script
+        run: |
+          set -euxo pipefail
+          rm -rf "${SCRIPT_DIR}"
+          mkdir -p "${SCRIPT_DIR}"
+          rsync -a --delete "${GITHUB_WORKSPACE}/" "${SCRIPT_DIR}/"
+
+      - name: Clone private repo to ~/output
+        env:
+          PRIVATE_REPO_URL: https://github.com/cuscutaceae/scales
+          PRIVATE_REPO_TOKEN: ${{ secrets.SCALES_TOKEN }}
+        run: |
+          set -euxo pipefail
+          rm -rf "${OUTPUT_DIR}"
+          mkdir -p "${OUTPUT_DIR}"
+          AUTH_URL="${PRIVATE_REPO_URL/https:\/\//https:\/\/x-access-token:${PRIVATE_REPO_TOKEN}@}"
+          git clone --depth 1 "${AUTH_URL}" "${OUTPUT_DIR}"
+
+      - name: Run script
+        run: |
+          set -euxo pipefail
+          cd "${SCRIPT_DIR}"
+          ./gradlew run ${OUTPUT_DIR}
+
+      - name: Commit changes
+        run: |
+          set -euxo pipefail
+          cd "${OUTPUT_DIR}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "${TARGET_BRANCH}"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update output ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
+
+      - name: Push to origin
+        run: |
+          set -euxo pipefail
+          cd "${OUTPUT_DIR}"
+          git push -u origin "${TARGET_BRANCH}"
