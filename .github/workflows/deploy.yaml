@@ -34,7 +34,7 @@ jobs:
                   git clone --depth 1 --branch ${{ env.TARGET_BRANCH }} --no-checkout --filter=blob:none "${AUTH_URL}" target
                   cd target
                   git sparse-checkout init --cone
-                  git sparse-checkout set bundle.json .gitignore
+                  git sparse-checkout set bundle.json
                   git checkout
 
             - name: Checkout repository
@@ -74,7 +74,7 @@ jobs:
                   SHOULD_COMMIT: ${{ needs.extract.outputs.shouldCommit }}
                   STATUS: ${{ needs.extract.outputs.status }}
               run: |
-                  if [[ "${SHOULD_COMMIT}" != "true"]]; then
+                  if [[ "${SHOULD_COMMIT}" != "true" ]]; then
                     if [[ "${STATUS}" != "0" ]]; then
                       echo "Error occurred. Exiting."
                       exit 1
