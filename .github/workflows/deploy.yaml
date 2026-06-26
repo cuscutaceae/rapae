@@ -29,13 +29,14 @@ jobs:
                   PRIVATE_REPO_URL: ${{ secrets.SCALES_REPOSITORY_URL }}
                   PRIVATE_REPO_TOKEN: ${{ secrets.SCALES_TOKEN }}
               run: |
-                  set -euxo pipefail
+                  set -euo pipefail
                   AUTH_URL="${PRIVATE_REPO_URL/https:\/\//https:\/\/x-access-token:${PRIVATE_REPO_TOKEN}@}"
                   git clone --branch ${{ env.TARGET_BRANCH }} --no-checkout --filter=blob:none "${AUTH_URL}" target
                   cd target
                   git sparse-checkout init --cone
                   git sparse-checkout set bundle.json
                   git checkout
+                  ls
 
             - name: Checkout repository
               uses: actions/checkout@v3
@@ -111,7 +112,7 @@ jobs:
         steps:
             - name: Commit changes
               run: |
-                  set -euxo pipefail
+                  set -euo pipefail
                   cd target
 
                   git config user.name "github-actions[bot]"
