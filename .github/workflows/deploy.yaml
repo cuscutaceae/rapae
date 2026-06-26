@@ -31,7 +31,7 @@ jobs:
               run: |
                   set -euxo pipefail
                   AUTH_URL="${PRIVATE_REPO_URL/https:\/\//https:\/\/x-access-token:${PRIVATE_REPO_TOKEN}@}"
-                  git clone --depth 1 --branch ${{ env.TARGET_BRANCH }} --no-checkout --filter=blob:none "${AUTH_URL}" target
+                  git clone --branch ${{ env.TARGET_BRANCH }} --no-checkout --filter=blob:none "${AUTH_URL}" target
                   cd target
                   git sparse-checkout init --cone
                   git sparse-checkout set bundle.json
@@ -62,8 +62,8 @@ jobs:
               id: extract
               run: |
                   set -euxo pipefail
-                  echo "shouldCommit=$(jq -r '.shouldCommit' target/bundle.json)" >> $GITHUB_OUTPUT
-                  echo "status=$(jq -r '.status' target/bundle.json)" >> $GITHUB_OUTPUT
+                  echo "shouldCommit=$(jq -r '.shouldCommit' target/result.json)" >> $GITHUB_OUTPUT
+                  echo "status=$(jq -r '.status' target/result.json)" >> $GITHUB_OUTPUT
 
     scirpophaga-dump:
         runs-on: ubuntu-latest
