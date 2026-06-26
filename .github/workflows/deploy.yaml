@@ -74,9 +74,15 @@ jobs:
                   SHOULD_COMMIT: ${{ needs.extract.outputs.shouldCommit }}
                   STATUS: ${{ needs.extract.outputs.status }}
               run: |
-                  if [[ "${SHOULD_COMMIT}" != "true" || "${STATUS}" != "0" ]]; then
-                      echo "No changes to commit or an error occurred. Exiting."
+                  if [[ "${SHOULD_COMMIT}" != "true"]]; then
+                    if [[ "${STATUS}" != "0" ]]; then
+                      echo "Error occurred. Exiting."
                       exit 1
+                    fi
+                    if [[ "${STATUS}" == "0" ]]; then
+                      echo "No changes to commit. Exiting."
+                      exit 0
+                    fi
                   fi
 
             - name: Checkout scirpophaga
