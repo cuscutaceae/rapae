@@ -71,7 +71,8 @@ jobs:
                   set -euxo pipefail
                   export SHOULD_COMMIT=$(jq -r '.shouldCommit' target/result.tmp)
                   export STATUS=$(jq -r '.status' target/result.tmp)
-
+                  echo "shouldCommit=${SHOULD_COMMIT}" >> $GITHUB_OUTPUT
+                  echo "status=${STATUS}" >> $GITHUB_OUTPUT
                   if [[ "${SHOULD_COMMIT}" != "true" ]]; then
                     if [[ "${STATUS}" != "0" ]]; then
                       echo "Error occurred. Exiting."
