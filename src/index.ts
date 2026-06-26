@@ -118,18 +118,18 @@ async function main(): Promise<Result> {
         hideCursor: true,
         format: " {bar} | {task} | {value}/{total}",
     });
-    // let promises: Promise<void>[] = [
-    //     downloadFile(
-    //         remoteVersionInfo.value.url,
-    //         `${workingDir}/apk.tmp`,
-    //         bar.create(100, 0, { task: "apk.tmp" }),
-    //     ),
-    //     downloadFile(
-    //         bundleInfo.jsonUrl,
-    //         `${workingDir}/bundle.json`,
-    //         bar.create(100, 0, { task: "bundle.json" }),
-    //     ),
-    // ];
+    let promises: Promise<void>[] = [
+        downloadFile(
+            remoteVersionInfo.value.url,
+            `${workingDir}/apk.tmp`,
+            bar.create(100, 0, { task: "apk.tmp" }),
+        ),
+        downloadFile(
+            bundleInfo.jsonUrl,
+            `${workingDir}/bundle.json`,
+            bar.create(100, 0, { task: "bundle.json" }),
+        ),
+    ];
     for (const it in bundleInfo.bundleParts) {
         const part = bundleInfo.bundleParts[it] ?? null;
         if (!part) {
@@ -138,13 +138,13 @@ async function main(): Promise<Result> {
             );
             return { shouldCommit: false, status: 1 };
         }
-        // await downloadFile(
-        //     part.bundleUrl,
-        //     `${workingDir}/bundle_part_${it}.tmp`,
-        //     bar.create(100, 0, { task: `bundle_part_${it}.tmp` }),
-        // );
+        await downloadFile(
+            part.bundleUrl,
+            `${workingDir}/bundle_part_${it}.tmp`,
+            bar.create(100, 0, { task: `bundle_part_${it}.tmp` }),
+        );
     }
-    // await Promise.all(promises);
+    await Promise.all(promises);
     bar.stop();
     log.info("[+] Download complete");
     log.info("[*] Extracting APK assets");
