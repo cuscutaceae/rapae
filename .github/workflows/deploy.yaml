@@ -1,84 +1,131 @@
 name: sync output
 
 on:
-  push:
-    branches:
-      - "**"
-  schedule:
-    - cron: "0 0 * * *"
-  workflow_dispatch: {}
+    push:
+        branches:
+            - "**"
+    schedule:
+        - cron: "0 0 * * *"
+    workflow_dispatch: {}
 
 permissions:
-  contents: write
+    contents: write
 
 concurrency:
-  group: sync-output
-  cancel-in-progress: false
+    group: sync-output
+    cancel-in-progress: false
 
 jobs:
-  sync:
-    runs-on: ubuntu-latest
-
-    env:
-      SCRIPT_DIR: /home/runner/script
-      OUTPUT_DIR: /home/runner/output
-      TARGET_BRANCH: generated-output
-
-    steps:
-      - name: Checkout current repo
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Copy repo to ~/script
-        run: |
-          set -euxo pipefail
-          rm -rf "${SCRIPT_DIR}"
-          mkdir -p "${SCRIPT_DIR}"
-          rsync -a --delete "${GITHUB_WORKSPACE}/" "${SCRIPT_DIR}/"
-
-      - name: Clone private repo to ~/output
+    extract:
+        runs-on: ubuntu-latest
         env:
-          PRIVATE_REPO_URL: https://github.com/cuscutaceae/scales
-          PRIVATE_REPO_TOKEN: ${{ secrets.SCALES_TOKEN }}
-        run: |
-          set -euxo pipefail
-          rm -rf "${OUTPUT_DIR}"
-          mkdir -p "${OUTPUT_DIR}"
-          AUTH_URL="${PRIVATE_REPO_URL/https:\/\//https:\/\/x-access-token:${PRIVATE_REPO_TOKEN}@}"
-          git clone "${AUTH_URL}" "${OUTPUT_DIR}"
+            TARGET_BRANCH: generated-output
+        outputs:
+            shouldCommit: ${{ steps.extract.outputs.shouldCommit }}
+            status: ${{ steps.extract.outputs.status }}
+        steps:
+            - name: Checkout scales
+              env:
+                  PRIVATE_REPO_URL: ${{ secrets.SCALES_REPOSITORY_URL }}
+                  PRIVATE_REPO_TOKEN: ${{ secrets.SCALES_TOKEN }}
+                  RAPAE_VERSION_URL: ${{ secrets.RAPAE_VERSION_URL }}
+                  RAPAE_TARGET_URL: ${{ secrets.RAPAE_TARGET_URL }}
+              run: |
+                  set -euxo pipefail
+                  AUTH_URL="${PRIVATE_REPO_URL/https:\/\//https:\/\/x-access-token:${PRIVATE_REPO_TOKEN}@}"
+                  git clone --depth 1 --branch ${{ env.TARGET_BRANCH }} --no-checkout --filter=blob:none ${PRIVATE_REPO_URL} target
+                  cd target
+                  git sparse-checkout init --cone
+                  git sparse-checkout set bundle.json .gitignore
+                  git checkout
 
-      - name: Run script
-        run: |
-          set -euxo pipefail
-          cd "${SCRIPT_DIR}"
-          chmod +x ./gradlew
-          ./gradlew run --args="${OUTPUT_DIR}"
-          cd "${OUTPUT_DIR}"
-          ls
-          rm -rf bundle_p*
+            - name: Checkout repository
+              uses: actions/checkout@v3
+              with:
+                  fetch-depth: 0
 
-      - name: Commit changes
-        run: |
-          set -euxo pipefail
-          cd "${OUTPUT_DIR}"
+            - name: Set up Node.js
+              uses: actions/setup-node@v3
+              with:
+                  node-version: "20"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+            - name: Install dependencies
+              run: npm ci
 
-          git checkout -B "${TARGET_BRANCH}"
+            - name: Run the script
+              run: |
+                  npm run build
+                  npm run start target
 
-          git add -A
+            - name: Extract output
+              id: extract
+              run: |
+                  set -euxo pipefail
+                  echo "shouldCommit=$(jq -r '.shouldCommit' target/bundle.json)" >> $GITHUB_OUTPUT
+                  echo "status=$(jq -r '.status' target/bundle.json)" >> $GITHUB_OUTPUT
 
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
+    scirpophaga-dump:
+        runs-on: ubuntu-latest
+        needs: extract
+        steps:
+            - name: Check output
+              env:
+                  SHOULD_COMMIT: ${{ needs.extract.outputs.shouldCommit }}
+                  STATUS: ${{ needs.extract.outputs.status }}
+              run: |
+                  if [[ "${SHOULD_COMMIT}" != "true" || "${STATUS}" != "0" ]]; then
+                      echo "No changes to commit or an error occurred. Exiting."
+                      exit 1
+                  fi
 
-          git commit -m "Update output ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
+            - name: Checkout scirpophaga
+              uses: actions/checkout@v3
+              with:
+                  repository: cuscutaceae/scirpophaga
+                  path: scirpophaga
+                  ref: main
 
-      - name: Push to origin
-        run: |
-          set -euxo pipefail
-          cd "${OUTPUT_DIR}"
-          git push -u origin "${TARGET_BRANCH}"
+            - name: Setup Rust
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Setup Dependencies
+              run: sudo apt-get update && sudo apt-get install -y clang cmake pkg-config
+
+            - name: Run scirpophaga
+              run: |
+                  cd scirpophaga
+                  cargo run -- ../target/lib.tmp/arm64-v8a/libcocos2dcpp.so > ../target/scirpophaga_key.txt
+
+    commit:
+        env:
+            TARGET_BRANCH: generated-output
+        runs-on: ubuntu-latest
+        needs: scirpophaga-dump
+        steps:
+            - name: Commit changes
+              run: |
+                  set -euxo pipefail
+                  cd target
+
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+
+                  git rm --cache -r . || true
+                  git add -A
+
+                  if git diff --cached --quiet; then
+                    echo "No changes to commit."
+                    exit 0
+                  fi
+
+                  git commit -m "Update output ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
+
+            - name: Push to origin
+              env:
+                  PRIVATE_REPO_URL: ${{ secrets.SCALES_REPOSITORY_URL }}
+                  PRIVATE_REPO_TOKEN: ${{ secrets.SCALES_TOKEN }}
+              run: |
+                  set -euxo pipefail
+                  cd target
+                  AUTH_URL="${PRIVATE_REPO_URL/https:\/\//https:\/\/x-access-token:${PRIVATE_REPO_TOKEN}@}"
+                  git push -u origin "${TARGET_BRANCH}"

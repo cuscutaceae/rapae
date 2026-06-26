@@ -1,0 +1,38 @@
+{
+  "name": "rapae",
+  "version": "0.1.0",
+  "description": "rapae the fetcher",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "node --env-file=.env.local dist/index.js"
+  },
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cuscutaceae/rapae.git"
+  },
+  "author": "nofyso",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cuscutaceae/rapae/issues"
+  },
+  "homepage": "https://github.com/cuscutaceae/rapae#readme",
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
+    "@types/cli-progress": "^3.11.6",
+    "@types/node": "^26.0.1",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.17",
+    "chalk": "^5.6.2",
+    "cli-progress": "^3.12.0",
+    "commander": "^15.0.0",
+    "got": "^15.0.6",
+    "inquirer": "^14.0.2",
+    "tslog": "^4.10.2",
+    "zod": "^4.4.3"
+  }
+}
