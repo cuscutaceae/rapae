@@ -56,6 +56,8 @@ jobs:
                   RAPAE_VERSION_URL: ${{ secrets.RAPAE_VERSION_URL }}
                   RAPAE_TARGET_URL: ${{ secrets.RAPAE_TARGET_URL }}
               run: |
+                  ls target
+                  file target/bundle.json
                   npm run build
                   npm run start target
 
@@ -63,8 +65,8 @@ jobs:
               id: extract
               run: |
                   set -euxo pipefail
-                  echo "shouldCommit=$(jq -r '.shouldCommit' target/result.json)" >> $GITHUB_OUTPUT
-                  echo "status=$(jq -r '.status' target/result.json)" >> $GITHUB_OUTPUT
+                  echo "shouldCommit=$(jq -r '.shouldCommit' target/result.tmp)" >> $GITHUB_OUTPUT
+                  echo "status=$(jq -r '.status' target/result.tmp)" >> $GITHUB_OUTPUT
 
     scirpophaga-dump:
         runs-on: ubuntu-latest

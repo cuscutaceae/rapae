@@ -82,7 +82,7 @@ async function main(): Promise<Result> {
     })();
     if (!needUpdate) {
         log.info("[*] No update needed, exiting");
-        // return { shouldCommit: false, status: 0 };
+        return { shouldCommit: false, status: 0 };
     }
     log.info("[*] Fetching bundle info");
     const bundleInfo = await fetchBundleResponse(
@@ -198,6 +198,7 @@ async function main(): Promise<Result> {
         fs.writeFileSync(`${workingDir}/${it.path}`, buffer);
         process.stdout.write(".");
     }
+    console.log("");
     log.info(
         `[+] Bundle extraction complete: ${newBundleInfo.added.length} files`,
     );
@@ -207,5 +208,5 @@ async function main(): Promise<Result> {
 }
 
 const result = await main();
-fs.writeFileSync("result.json", JSON.stringify(result));
+fs.writeFileSync(`${workingDir}/result.tmp`, JSON.stringify(result));
 process.exit(result.status);
