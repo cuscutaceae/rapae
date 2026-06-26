@@ -83,6 +83,11 @@ jobs:
                     fi
                   fi
 
+    commit:
+        needs: extract
+        runs-on: ubuntu-latest
+        if: needs.extract.outputs.shouldCommit == 'true'
+        steps:
             - name: Checkout scirpophaga
               uses: actions/checkout@v3
               with:
@@ -99,7 +104,7 @@ jobs:
             - name: Run scirpophaga
               run: |
                   cd scirpophaga
-                  cargo run -- ../target/lib.tmp/arm64-v8a/libcocos2dcpp.so > ../target/scirpophaga_key.txt
+                  cargo run -- ../target/lib.tmp/libcocos2dcpp.so > ../target/scirpophaga_key.txt
 
             - name: Commit changes
               run: |
