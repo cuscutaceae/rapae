@@ -28,8 +28,6 @@ jobs:
               env:
                   PRIVATE_REPO_URL: ${{ secrets.SCALES_REPOSITORY_URL }}
                   PRIVATE_REPO_TOKEN: ${{ secrets.SCALES_TOKEN }}
-                  RAPAE_VERSION_URL: ${{ secrets.RAPAE_VERSION_URL }}
-                  RAPAE_TARGET_URL: ${{ secrets.RAPAE_TARGET_URL }}
               run: |
                   set -euxo pipefail
                   AUTH_URL="${PRIVATE_REPO_URL/https:\/\//https:\/\/x-access-token:${PRIVATE_REPO_TOKEN}@}"
@@ -53,6 +51,9 @@ jobs:
               run: npm ci
 
             - name: Run the script
+              env:
+                  RAPAE_VERSION_URL: ${{ secrets.RAPAE_VERSION_URL }}
+                  RAPAE_TARGET_URL: ${{ secrets.RAPAE_TARGET_URL }}
               run: |
                   npm run build
                   npm run start target
