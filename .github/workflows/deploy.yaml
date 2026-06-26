@@ -116,10 +116,10 @@ jobs:
                   git config user.email "github-actions[bot]@users.noreply.github.com"
 
                   git rm --cache -r . || true
-                  git add -A
+                  git add --sparse -A
 
                   if git diff --cached --quiet; then
-                    echo "No changes to commit."
+                    echo "::warning::No changes to commit."
                     exit 0
                   fi
 
