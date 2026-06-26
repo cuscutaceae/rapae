@@ -84,30 +84,30 @@ jobs:
                     fi
                   fi
 
-    commit:
-        needs: extract
-        runs-on: ubuntu-latest
-        if: needs.extract.outputs.shouldCommit == 'true'
-        steps:
             - name: Checkout scirpophaga
               uses: actions/checkout@v3
+              if: steps.extract.outputs.shouldCommit == 'true'
               with:
                   repository: cuscutaceae/scirpophaga
                   path: scirpophaga
                   ref: main
 
             - name: Setup Rust
+              if: steps.extract.outputs.shouldCommit == 'true'
               uses: dtolnay/rust-toolchain@stable
 
             - name: Setup Dependencies
+              if: steps.extract.outputs.shouldCommit == 'true'
               run: sudo apt-get update && sudo apt-get install -y clang cmake pkg-config
 
             - name: Run scirpophaga
+              if: steps.extract.outputs.shouldCommit == 'true'
               run: |
                   cd scirpophaga
                   cargo run -- ../target/lib.tmp/libcocos2dcpp.so > ../target/scirpophaga_key.txt
 
             - name: Commit changes
+              if: steps.extract.outputs.shouldCommit == 'true'
               run: |
                   set -euo pipefail
                   cd target
@@ -126,6 +126,7 @@ jobs:
                   git commit -m "Update output ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
 
             - name: Push to origin
+              if: steps.extract.outputs.shouldCommit == 'true'
               env:
                   PRIVATE_REPO_URL: ${{ secrets.SCALES_REPOSITORY_URL }}
                   PRIVATE_REPO_TOKEN: ${{ secrets.SCALES_TOKEN }}
