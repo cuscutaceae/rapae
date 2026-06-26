@@ -33,7 +33,7 @@ jobs:
               run: |
                   set -euxo pipefail
                   AUTH_URL="${PRIVATE_REPO_URL/https:\/\//https:\/\/x-access-token:${PRIVATE_REPO_TOKEN}@}"
-                  git clone --depth 1 --branch ${{ env.TARGET_BRANCH }} --no-checkout --filter=blob:none ${PRIVATE_REPO_URL} target
+                  git clone --depth 1 --branch ${{ env.TARGET_BRANCH }} --no-checkout --filter=blob:none "${AUTH_URL}" target
                   cd target
                   git sparse-checkout init --cone
                   git sparse-checkout set bundle.json .gitignore
