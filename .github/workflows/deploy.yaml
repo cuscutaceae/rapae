@@ -24,6 +24,11 @@ jobs:
             shouldCommit: ${{ steps.extract.outputs.shouldCommit }}
             status: ${{ steps.extract.outputs.status }}
         steps:
+            - name: Checkout repository
+              uses: actions/checkout@v3
+              with:
+                  fetch-depth: 0
+
             - name: Checkout scales
               env:
                   PRIVATE_REPO_URL: ${{ secrets.SCALES_REPOSITORY_URL }}
@@ -37,12 +42,7 @@ jobs:
                   git sparse-checkout set bundle.json
                   git checkout
                   ls
-
-            - name: Checkout repository
-              uses: actions/checkout@v3
-              with:
-                  fetch-depth: 0
-
+            
             - name: Set up Node.js
               uses: actions/setup-node@v3
               with:
