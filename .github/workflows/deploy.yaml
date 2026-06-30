@@ -20,6 +20,7 @@ jobs:
         runs-on: ubuntu-latest
         env:
             TARGET_BRANCH: generated-output
+            ENABLE_CLOUD_STORAGE: ${{ env.ENABLE_CLOUD_STORAGE }}
         outputs:
             shouldCommit: ${{ steps.extract.outputs.shouldCommit }}
             status: ${{ steps.extract.outputs.status }}
@@ -105,6 +106,46 @@ jobs:
               run: |
                   cd scirpophaga
                   cargo run -- ../target/lib.tmp/libcocos2dcpp.so > ../target/scirpophaga_key.txt
+
+            - name: Remove temporary files
+              if: steps.extract.outputs.shouldCommit == 'true'
+              run: |
+                  set -euxo pipefail
+                  find . -type f -name "*.tmp" -delete
+                  find . -type d -name "*.tmp" -empty -delete
+
+            - name: Install AWS CLI
+              id: install-aws-cli
+              if: steps.extract.outputs.shouldCommit == 'true' && env.ENABLE_CLOUD_STORAGE == 'true'
+              uses: unfor19/install-aws-cli-action@v1
+
+            - name: Install Wrangler CLI
+              id: install-wrangler-cli
+              if: steps.extract.outputs.shouldCommit == 'true' && env.ENABLE_CLOUD_STORAGE == 'true'
+              uses: cloudflare/wrangler-action@v1
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v2
+              if: steps.extract.outputs.shouldCommit == 'true' && env.ENABLE_CLOUD_STORAGE == 'true'
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: auto
+
+            - name: Upload to S3
+              if: steps.extract.outputs.shouldCommit == 'true' && env.ENABLE_CLOUD_STORAGE == 'true'
+              env:
+                  AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
+                  AWS_BUCKET_NAME: ${{ secrets.AWS_BUCKET_NAME }}
+                  CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+                  CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+                  CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
+                  CF_KV_KEY: ${{ secrets.CF_KV_KEY }}
+              run: |
+                  set -euxo pipefail
+                  current_timestamp=$(date +%s)
+                  aws s3 sync target/ s3://${AWS_BUCKET_NAME}/versions/${current_timestamp}/ --recursive --endpoint-url "${AWS_ENDPOINT_URL}"
+                  wrangler kv:key put --namespace-id="${CF_KV_NAMESPACE_ID}" "${CF_KV_KEY}" "${current_timestamp}"
 
             - name: Commit changes
               if: steps.extract.outputs.shouldCommit == 'true'
