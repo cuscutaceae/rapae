@@ -120,9 +120,10 @@ jobs:
               uses: unfor19/install-aws-cli-action@v1
 
             - name: Install Wrangler CLI
-              id: install-wrangler-cli
               if: steps.extract.outputs.shouldCommit == 'true' && env.ENABLE_CLOUD_STORAGE == 'true'
-              uses: cloudflare/wrangler-action@v1
+              run: |
+                  set -euxo pipefail
+                  npm install wrangler
 
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@v2
@@ -139,13 +140,13 @@ jobs:
                   AWS_BUCKET_NAME: ${{ secrets.AWS_BUCKET_NAME }}
                   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
                   CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-                  CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
-                  CF_KV_KEY: ${{ secrets.CF_KV_KEY }}
+                  CLOUDFLARE_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
+                  CLOUDFLARE_KV_KEY: ${{ secrets.CF_KV_KEY }}
               run: |
                   set -euxo pipefail
                   current_timestamp=$(date +%s)
                   aws s3 sync target/ s3://${AWS_BUCKET_NAME}/versions/${current_timestamp}/ --recursive --endpoint-url "${AWS_ENDPOINT_URL}"
-                  wrangler kv:key put --namespace-id="${CF_KV_NAMESPACE_ID}" "${CF_KV_KEY}" "${current_timestamp}"
+                  wrangler kv:key put --namespace-id="${CLOUDFLARE_KV_NAMESPACE_ID}" "${CLOUDFLARE_KV_KEY}" "${current_timestamp}"
 
             - name: Commit changes
               if: steps.extract.outputs.shouldCommit == 'true'
