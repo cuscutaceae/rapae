@@ -140,7 +140,7 @@ jobs:
                   set -euxo pipefail
                   current_timestamp=$(date +%s)
                   # aws s3 sync target/ s3://${AWS_BUCKET_NAME}/versions/${current_timestamp}/ --endpoint-url "${AWS_ENDPOINT_URL}"
-                  npx wrangler kv:key put --namespace-id="${CLOUDFLARE_KV_NAMESPACE_ID}" "${CLOUDFLARE_KV_KEY}" "${current_timestamp}"
+                  npx wrangler kv:key put "${CLOUDFLARE_KV_KEY}" "${current_timestamp}" --namespace-id="${CLOUDFLARE_KV_NAMESPACE_ID}"
 
             - name: Commit changes
               if: steps.extract.outputs.shouldCommit == 'true'
