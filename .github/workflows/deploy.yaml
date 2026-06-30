@@ -20,7 +20,7 @@ jobs:
         runs-on: ubuntu-latest
         env:
             TARGET_BRANCH: generated-output
-            ENABLE_CLOUD_STORAGE: ${{ env.ENABLE_CLOUD_STORAGE }}
+            ENABLE_CLOUD_STORAGE: ${{ vars.ENABLE_CLOUD_STORAGE }}
         outputs:
             shouldCommit: ${{ steps.extract.outputs.shouldCommit }}
             status: ${{ steps.extract.outputs.status }}
