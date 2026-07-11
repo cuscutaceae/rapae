@@ -59,6 +59,7 @@ jobs:
               env:
                   RAPAE_VERSION_URL: ${{ secrets.RAPAE_VERSION_URL }}
                   RAPAE_TARGET_URL: ${{ secrets.RAPAE_TARGET_URL }}
+                  RAPAE_TABLE_URL: ${{ secrets.RAPAE_TABLE_URL }}
               run: |
                   ls target
                   file target/bundle.json
