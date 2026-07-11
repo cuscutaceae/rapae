@@ -36,7 +36,7 @@ const TARGET_URL =
 const TABLE_URL =
     process.env.RAPAE_TABLE_URL ??
     (() => {
-        throw new Error("RAPAE_TARGET_URL environment variable is not set");
+        throw new Error("RAPAE_TABLE_URL environment variable is not set");
     })();
 
 type Result = {
