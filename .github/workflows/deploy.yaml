@@ -144,10 +144,10 @@ jobs:
               run: |
                   set -euxo pipefail
                   current_bundle_version=$(jq -r '.versionNumber' target/bundle.json)
-                  if [[ SHOULD_UPLOAD_BUNDLE == 'true' ]]; then
+                  if [[ "${SHOULD_UPLOAD_BUNDLE}" == 'true' ]]; then
                     aws s3 sync target/ s3://${AWS_BUCKET_NAME}/versions/${current_bundle_version}/ --endpoint-url "${AWS_ENDPOINT_URL}"
                   fi
-                  if [[ SHOULD_UPLOAD_DIFFICULTIES == 'true' ]]; then
+                  if [[ "${SHOULD_UPLOAD_DIFFICULTIES}" == 'true' ]]; then
                     aws s3 cp target/difficulties.json s3://${AWS_BUCKET_NAME}/versions/${current_bundle_version}/difficulties.json --endpoint-url "${AWS_ENDPOINT_URL}"
                   fi
                   npx wrangler kv key put "${CLOUDFLARE_KV_KEY}" "${current_bundle_version}" --namespace-id="${CLOUDFLARE_KV_NAMESPACE_ID}" --remote
