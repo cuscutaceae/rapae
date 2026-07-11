@@ -112,6 +112,14 @@ async function readLocalBundleInfo(
     return parsed.data;
 }
 
+async function fetchDifficultyTable(url: string): Promise<string> {
+    const result = await fetch(url);
+    if (!result.ok) {
+        throw new Error(`HTTP error! status: ${result.status}`);
+    }
+    return result.text();
+}
+
 function downloadFile(
     url: string,
     destinationPath: string,
@@ -136,5 +144,11 @@ function downloadFile(
     });
 }
 
-export { fetchVersion, fetchBundleResponse, readLocalBundleInfo, downloadFile };
+export {
+    fetchVersion,
+    fetchBundleResponse,
+    fetchDifficultyTable,
+    readLocalBundleInfo,
+    downloadFile,
+};
 export type { VersionResponse, BundleInfo as BundleVersionInfo };

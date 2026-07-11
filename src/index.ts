@@ -13,6 +13,7 @@ import * as cliProgress from "cli-progress";
 import { extractDirectory, readFileStream } from "./files.js";
 import path from "path";
 import crypto from "crypto";
+import { analyzeTable } from "./table.js";
 
 const log = new Logger({
     name: "rapae",
@@ -32,18 +33,39 @@ const TARGET_URL =
     (() => {
         throw new Error("RAPAE_TARGET_URL environment variable is not set");
     })();
+const TABLE_URL =
+    process.env.RAPAE_TABLE_URL ??
+    (() => {
+        throw new Error("RAPAE_TARGET_URL environment variable is not set");
+    })();
 
 type Result = {
     status: number;
-    shouldCommit: boolean;
+    shouldCommitBundle: boolean;
+    shouldCommitDifficulties: boolean;
 };
 
 async function main(): Promise<Result> {
+    let shouldCommitDifficulties = false;
     log.info("[*] rapae starting");
     log.info(`[*] Working directory: ${workingDir}`);
     if (!fs.existsSync(workingDir)) {
         fs.mkdirSync(workingDir, { recursive: true });
         log.info(`[+] Created working directory: ${workingDir}`);
+    }
+    log.info("[*] Fetching difficulties");
+    try {
+        let rows = await analyzeTable(TABLE_URL);
+        let data = {
+            difficulties: rows,
+        };
+        fs.writeFileSync(
+            `${workingDir}/difficulties.json`,
+            JSON.stringify(data),
+        );
+        shouldCommitDifficulties = true;
+    } catch (e) {
+        log.warn(`[-] Failed to fetch difficulties: ${e}`);
     }
     const remoteVersionInfo = await fetchVersion(VERSION_CHECK_URL);
     const targetVersion = getPureVersion(remoteVersionInfo.value.version);
@@ -52,7 +74,7 @@ async function main(): Promise<Result> {
     log.info(`      Version (Filtered): ${targetVersion}`);
     log.info(`      URL: ${toSafeUrl(remoteVersionInfo.value.url)}`);
     const localBundleInfo = await readLocalBundleInfo(workingDir);
-    const needUpdate = (() => {
+    const needUpdateBundle = (() => {
         if (!localBundleInfo) {
             log.info("[*] No local bundle info found, need to update");
             return true;
@@ -80,9 +102,13 @@ async function main(): Promise<Result> {
         }
         return versionCompareResult < 0;
     })();
-    if (!needUpdate) {
+    if (!needUpdateBundle) {
         log.info("[*] No update needed, exiting");
-        return { shouldCommit: false, status: 0 };
+        return {
+            shouldCommitBundle: false,
+            status: 0,
+            shouldCommitDifficulties,
+        };
     }
     log.info("[*] Fetching bundle info");
     const bundleInfo = await fetchBundleResponse(
@@ -93,7 +119,11 @@ async function main(): Promise<Result> {
     });
     if (!bundleInfo) {
         log.error("[-] Failed to fetch bundle info, exiting");
-        return { shouldCommit: false, status: 1 };
+        return {
+            shouldCommitBundle: false,
+            status: 1,
+            shouldCommitDifficulties,
+        };
     }
     log.info("[+] Fetched bundle info:");
     log.info(`      Application Version: ${bundleInfo.appVersion}`);
@@ -108,7 +138,11 @@ async function main(): Promise<Result> {
             log.error(
                 `[-] Failed to fetch bundle part info for index ${index}, exiting`,
             );
-            return { shouldCommit: false, status: 1 };
+            return {
+                shouldCommitBundle: false,
+                status: 1,
+                shouldCommitDifficulties,
+            };
         }
         log.info(`      Part ${index}: ${it.bundleSize} B`);
     }
@@ -136,7 +170,11 @@ async function main(): Promise<Result> {
             log.error(
                 `[-] Failed to fetch bundle part info for index ${it}, exiting`,
             );
-            return { shouldCommit: false, status: 1 };
+            return {
+                shouldCommitBundle: false,
+                status: 1,
+                shouldCommitDifficulties,
+            };
         }
         await downloadFile(
             part.bundleUrl,
@@ -158,7 +196,11 @@ async function main(): Promise<Result> {
     const newBundleInfo = await readLocalBundleInfo(workingDir);
     if (!newBundleInfo) {
         log.error("[-] Failed to read new bundle info, exiting");
-        return { shouldCommit: false, status: 1 };
+        return {
+            shouldCommitBundle: false,
+            status: 1,
+            shouldCommitDifficulties,
+        };
     }
     log.info(`      Version: ${newBundleInfo.versionNumber}`);
     log.info(
@@ -172,14 +214,22 @@ async function main(): Promise<Result> {
             log.error(
                 `[-] Failed to fetch new bundle part info for index ${index}, exiting`,
             );
-            return { shouldCommit: false, status: 1 };
+            return {
+                shouldCommitBundle: false,
+                status: 1,
+                shouldCommitDifficulties,
+            };
         }
         const partFile = `${workingDir}/bundle_part_${it.partIndex}.tmp`;
         if (!fs.existsSync(partFile)) {
             log.error(
                 `[-] Bundle part file ${partFile} does not exist, exiting`,
             );
-            return { shouldCommit: false, status: 1 };
+            return {
+                shouldCommitBundle: false,
+                status: 1,
+                shouldCommitDifficulties,
+            };
         }
         const buffer = await readFileStream(partFile, it.byteOffset, it.length);
         const sha256Hash = crypto
@@ -190,7 +240,11 @@ async function main(): Promise<Result> {
             log.error(
                 `[-] SHA256 hash mismatch for ${partFile} (expected: ${it.sha256HashBase64Encoded}, got: ${sha256Hash}), exiting`,
             );
-            return { shouldCommit: false, status: 1 };
+            return {
+                shouldCommitBundle: false,
+                status: 1,
+                shouldCommitDifficulties,
+            };
         }
         fs.mkdirSync(path.dirname(`${workingDir}/${it.path}`), {
             recursive: true,
@@ -204,7 +258,7 @@ async function main(): Promise<Result> {
     );
     fs.writeFileSync(`${workingDir}/.gitignore`, "*.tmp\n");
     log.info("[+] Git ignore file created");
-    return { shouldCommit: true, status: 0 };
+    return { shouldCommitBundle: true, status: 0, shouldCommitDifficulties };
 }
 
 const result = await main();

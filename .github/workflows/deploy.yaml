@@ -22,7 +22,7 @@ jobs:
             TARGET_BRANCH: generated-output
             ENABLE_CLOUD_STORAGE: ${{ vars.ENABLE_CLOUD_STORAGE }}
         outputs:
-            shouldCommit: ${{ steps.extract.outputs.shouldCommit }}
+            shouldCommitBundle: ${{ steps.extract.outputs.shouldCommitBundle }}
             status: ${{ steps.extract.outputs.status }}
         steps:
             - name: Checkout repository
@@ -70,11 +70,13 @@ jobs:
               id: extract
               run: |
                   set -euxo pipefail
-                  export SHOULD_COMMIT=$(jq -r '.shouldCommit' target/result.tmp)
+                  export SHOULD_COMMIT_BUNDLE=$(jq -r '.shouldCommitBundle' target/result.tmp)
+                  export SHOULD_COMMIT_DIFFICULTIES=$(jq -r '.shouldCommitDifficulties' target/result.tmp)
                   export STATUS=$(jq -r '.status' target/result.tmp)
-                  echo "shouldCommit=${SHOULD_COMMIT}" >> $GITHUB_OUTPUT
+                  echo "shouldCommitBundle=${SHOULD_COMMIT_BUNDLE}" >> $GITHUB_OUTPUT
+                  echo "shouldCommitDifficulties=${SHOULD_COMMIT_DIFFICULTIES}" >> $GITHUB_OUTPUT
                   echo "status=${STATUS}" >> $GITHUB_OUTPUT
-                  if [[ "${SHOULD_COMMIT}" != "true" ]]; then
+                  if [[ "${SHOULD_COMMIT_BUNDLE}" != "true" ]]; then
                     if [[ "${STATUS}" != "0" ]]; then
                       echo "Error occurred. Exiting."
                       exit 1
@@ -87,28 +89,28 @@ jobs:
 
             - name: Checkout scirpophaga
               uses: actions/checkout@v3
-              if: steps.extract.outputs.shouldCommit == 'true'
+              if: steps.extract.outputs.shouldCommitBundle == 'true'
               with:
                   repository: cuscutaceae/scirpophaga
                   path: scirpophaga
                   ref: main
 
             - name: Setup Rust
-              if: steps.extract.outputs.shouldCommit == 'true'
+              if: steps.extract.outputs.shouldCommitBundle == 'true'
               uses: dtolnay/rust-toolchain@stable
 
             - name: Setup Dependencies
-              if: steps.extract.outputs.shouldCommit == 'true'
+              if: steps.extract.outputs.shouldCommitBundle == 'true'
               run: sudo apt-get update && sudo apt-get install -y clang cmake pkg-config
 
             - name: Run scirpophaga
-              if: steps.extract.outputs.shouldCommit == 'true'
+              if: steps.extract.outputs.shouldCommitBundle == 'true'
               run: |
                   cd scirpophaga
                   cargo run -- ../target/lib.tmp/libcocos2dcpp.so > ../target/scirpophaga_key.txt
 
             - name: Remove temporary files
-              if: steps.extract.outputs.shouldCommit == 'true'
+              if: steps.extract.outputs.shouldCommitBundle == 'true'
               run: |
                   set -euxo pipefail
                   find . -type f -name "*.tmp" -delete
@@ -116,17 +118,17 @@ jobs:
 
             - name: Install AWS CLI
               id: install-aws-cli
-              if: steps.extract.outputs.shouldCommit == 'true' && env.ENABLE_CLOUD_STORAGE == 'true'
+              if: steps.extract.outputs.shouldCommitBundle == 'true' && env.ENABLE_CLOUD_STORAGE == 'true'
               uses: unfor19/install-aws-cli-action@v1
 
             - name: Install Wrangler CLI
-              if: steps.extract.outputs.shouldCommit == 'true' && env.ENABLE_CLOUD_STORAGE == 'true'
+              if: steps.extract.outputs.shouldCommitBundle == 'true' && env.ENABLE_CLOUD_STORAGE == 'true'
               run: |
                   set -euxo pipefail
                   npm install wrangler
 
-            - name: Upload to S3
-              if: steps.extract.outputs.shouldCommit == 'true' && env.ENABLE_CLOUD_STORAGE == 'true'
+            - name: Upload assets to S3
+              if: (steps.extract.outputs.shouldCommitBundle == 'true' || steps.extract.outputs.shouldCommitDifficulties == 'true') && env.ENABLE_CLOUD_STORAGE == 'true'
               env:
                   AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
                   AWS_BUCKET_NAME: ${{ secrets.AWS_BUCKET_NAME }}
@@ -136,14 +138,39 @@ jobs:
                   CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
                   CLOUDFLARE_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
                   CLOUDFLARE_KV_KEY: ${{ secrets.CF_KV_KEY }}
+                  SHOULD_UPLOAD_BUNDLE: ${{ steps.extract.outputs.shouldCommitBundle }}
+                  SHOULD_UPLOAD_DIFFICULTIES: ${{ steps.extract.outputs.shouldCommitDifficulties }}
               run: |
                   set -euxo pipefail
-                  current_timestamp=$(date +%s)
-                  aws s3 sync target/ s3://${AWS_BUCKET_NAME}/versions/${current_timestamp}/ --endpoint-url "${AWS_ENDPOINT_URL}"
-                  npx wrangler kv key put "${CLOUDFLARE_KV_KEY}" "${current_timestamp}" --namespace-id="${CLOUDFLARE_KV_NAMESPACE_ID}" --remote
+                  current_bundle_version=$(jq -r '.versionNumber' target/bundle.json)
+                  if [[ SHOULD_UPLOAD_BUNDLE == 'true' ]]; then
+                    aws s3 sync target/ s3://${AWS_BUCKET_NAME}/versions/${current_bundle_version}/ --endpoint-url "${AWS_ENDPOINT_URL}"
+                  fi
+                  if [[ SHOULD_UPLOAD_DIFFICULTIES == 'true' ]]; then
+                    aws s3 sync target/difficulties.json s3://${AWS_BUCKET_NAME}/versions/${current_bundle_version}/difficulties.json --endpoint-url "${AWS_ENDPOINT_URL}"
+                  fi
+                  npx wrangler kv key put "${CLOUDFLARE_KV_KEY}" "${current_bundle_version}" --namespace-id="${CLOUDFLARE_KV_NAMESPACE_ID}" --remote
 
-            - name: Commit changes
-              if: steps.extract.outputs.shouldCommit == 'true'
+            - name: Commit difficulties changes
+              if: steps.extract.outputs.shouldCommitDifficulties == 'true'
+              run: |
+                  set -euo pipefail
+                  cd target
+
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+
+                  git add --sparse difficulties.json
+
+                  if git diff --cached --quiet; then
+                    echo "::warning::No difficulties changes to commit."
+                    exit 0
+                  fi
+
+                  git commit -m "Update output ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
+
+            - name: Commit bundle changes
+              if: steps.extract.outputs.shouldCommitBundle == 'true'
               run: |
                   set -euo pipefail
                   cd target
@@ -155,14 +182,14 @@ jobs:
                   git add --sparse -A
 
                   if git diff --cached --quiet; then
-                    echo "::warning::No changes to commit."
+                    echo "::warning::No bundle changes to commit."
                     exit 0
                   fi
 
                   git commit -m "Update output ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
 
             - name: Push to origin
-              if: steps.extract.outputs.shouldCommit == 'true'
+              if: steps.extract.outputs.shouldCommitBundle == 'true'
               env:
                   PRIVATE_REPO_URL: ${{ secrets.SCALES_REPOSITORY_URL }}
                   PRIVATE_REPO_TOKEN: ${{ secrets.SCALES_TOKEN }}
