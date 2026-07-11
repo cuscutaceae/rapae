@@ -148,7 +148,7 @@ jobs:
                     aws s3 sync target/ s3://${AWS_BUCKET_NAME}/versions/${current_bundle_version}/ --endpoint-url "${AWS_ENDPOINT_URL}"
                   fi
                   if [[ SHOULD_UPLOAD_DIFFICULTIES == 'true' ]]; then
-                    aws s3 sync target/difficulties.json s3://${AWS_BUCKET_NAME}/versions/${current_bundle_version}/difficulties.json --endpoint-url "${AWS_ENDPOINT_URL}"
+                    aws s3 cp target/difficulties.json s3://${AWS_BUCKET_NAME}/versions/${current_bundle_version}/difficulties.json --endpoint-url "${AWS_ENDPOINT_URL}"
                   fi
                   npx wrangler kv key put "${CLOUDFLARE_KV_KEY}" "${current_bundle_version}" --namespace-id="${CLOUDFLARE_KV_NAMESPACE_ID}" --remote
 
@@ -190,7 +190,7 @@ jobs:
                   git commit -m "Update output ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
 
             - name: Push to origin
-              if: steps.extract.outputs.shouldCommitBundle == 'true'
+              if: steps.extract.outputs.shouldCommitBundle == 'true' || steps.extract.outputs.shouldCommitDifficulties == 'true'
               env:
                   PRIVATE_REPO_URL: ${{ secrets.SCALES_REPOSITORY_URL }}
                   PRIVATE_REPO_TOKEN: ${{ secrets.SCALES_TOKEN }}
