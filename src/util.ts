@@ -6,8 +6,8 @@ function getPureVersion(version: string): string {
 }
 
 function compareVersions(versionA: string, versionB: string): number {
-    const partsA = versionA.split(".").map(Number);
-    const partsB = versionB.split(".").map(Number);
+    const partsA = versionA.replaceAll("c", "").split(".").map(Number);
+    const partsB = versionB.replaceAll("c", "").split(".").map(Number);
     const maxLength = Math.max(partsA.length, partsB.length);
     for (let i = 0; i < maxLength; i++) {
         const numA = i < partsA.length ? (partsA[i] ?? 0) : 0;
