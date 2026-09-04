@@ -108,7 +108,7 @@ jobs:
               if: steps.extract.outputs.shouldCommitBundle == 'true'
               run: |
                   cd scirpophaga
-                  cargo run -- ../target/lib.tmp/libcocos2dcpp.so > ../target/scirpophaga_key.txt
+                  RUST_LOG="info" cargo run -- ../target/lib.tmp/libcocos2dcpp.so > ../target/scirpophaga_key.txt
 
             - name: Remove temporary files
               if: steps.extract.outputs.shouldCommitBundle == 'true'
