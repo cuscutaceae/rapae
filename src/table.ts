@@ -53,7 +53,8 @@ async function analyzeTable(url: string) {
                     ?.replace("PST", "past")
                     ?.replace("PRS", "present")
                     ?.replace("FTR", "future")
-                    ?.replace("BYD/INS", "beyond")
+                    ?.replace("BYDINS", "beyond_inscribed")
+                    ?.replace("BYD/INS", "beyond_inscribed")
                     ?.replace("ETR", "eternal") || `col_${i + 1}`;
             const text = $(cell).text().trim();
             const tryNumber = Number(text);
