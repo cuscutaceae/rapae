@@ -38,6 +38,10 @@ const TABLE_URL =
     (() => {
         throw new Error("RAPAE_TABLE_URL environment variable is not set");
     })();
+const APP_VERSION_OVERRIDE =
+    process.env.APP_VERSION_OVERRIDE == "none"
+        ? null
+        : (process.env.APP_VERSION_OVERRIDE ?? null);
 
 type Result = {
     status: number;
@@ -113,7 +117,7 @@ async function main(): Promise<Result> {
     log.info("[*] Fetching bundle info");
     const bundleInfo = await fetchBundleResponse(
         TARGET_URL,
-        targetVersion,
+        APP_VERSION_OVERRIDE ?? targetVersion,
     ).then((bundleResponse) => {
         return bundleResponse.value.orderedResults[0] ?? null;
     });
