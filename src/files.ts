@@ -2,34 +2,6 @@ import AdmZip from "adm-zip";
 import path from "path";
 import * as fs from "fs";
 
-async function readFileStream(
-    filePath: string,
-    start: number,
-    length: number,
-): Promise<Buffer> {
-    let buffer = Buffer.alloc(length);
-    let bytesRead = 0;
-    return new Promise((resolve, reject) => {
-        const readStream = fs.createReadStream(filePath, {
-            start: start,
-            end: start + length - 1,
-            highWaterMark: 64 * 1024,
-        });
-        readStream.on("data", (chunk: Buffer) => {
-            if (bytesRead >= length) {
-                readStream.destroy(new Error("Read more bytes than expected"));
-                reject(new Error("Read more bytes than expected"));
-            }
-            chunk.copy(buffer, bytesRead, 0, chunk.length);
-            bytesRead += chunk.length;
-        });
-        readStream.on("end", () => {
-            resolve(buffer);
-        });
-        readStream.on("error", reject);
-    });
-}
-
 function extractDirectory(
     zipPath: string,
     sourceDir: string,
@@ -68,4 +40,4 @@ function extractDirectory(
     });
 }
 
-export { readFileStream, extractDirectory };
+export { extractDirectory };

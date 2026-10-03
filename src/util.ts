@@ -1,10 +1,3 @@
-function getPureVersion(version: string): string {
-    return version
-        .split("")
-        .filter((char) => (char >= "0" && char <= "9") || char === ".")
-        .join("");
-}
-
 function compareVersions(versionA: string, versionB: string): number {
     const partsA = versionA.replaceAll("c", "").split(".").map(Number);
     const partsB = versionB.replaceAll("c", "").split(".").map(Number);
@@ -23,4 +16,4 @@ function toSafeUrl(url: string): string {
     return urlObj.pathname;
 }
 
-export { getPureVersion, compareVersions, toSafeUrl };
+export { compareVersions, toSafeUrl };

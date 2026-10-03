@@ -2,17 +2,10 @@
 
 import * as fs from "fs";
 import { Logger } from "tslog";
-import {
-    downloadFile,
-    fetchBundleResponse,
-    fetchVersion,
-    readLocalBundleInfo,
-} from "./api.js";
-import { compareVersions, getPureVersion, toSafeUrl } from "./util.js";
+import { downloadFile, fetchVersion, readLocalAppVersionInfo } from "./api.js";
+import { compareVersions, toSafeUrl } from "./util.js";
 import * as cliProgress from "cli-progress";
-import { extractDirectory, readFileStream } from "./files.js";
-import path from "path";
-import crypto from "crypto";
+import { extractDirectory } from "./files.js";
 import { analyzeTable } from "./table.js";
 
 const log = new Logger({
@@ -28,20 +21,11 @@ const VERSION_CHECK_URL =
     (() => {
         throw new Error("RAPAE_VERSION_URL environment variable is not set");
     })();
-const TARGET_URL =
-    process.env.RAPAE_TARGET_URL ??
-    (() => {
-        throw new Error("RAPAE_TARGET_URL environment variable is not set");
-    })();
 const TABLE_URL =
     process.env.RAPAE_TABLE_URL ??
     (() => {
         throw new Error("RAPAE_TABLE_URL environment variable is not set");
     })();
-const APP_VERSION_OVERRIDE =
-    process.env.APP_VERSION_OVERRIDE == "none"
-        ? null
-        : (process.env.APP_VERSION_OVERRIDE ?? null);
 
 type Result = {
     status: number;
@@ -72,26 +56,21 @@ async function main(): Promise<Result> {
         log.warn(`[-] Failed to fetch difficulties: ${e}`);
     }
     const remoteVersionInfo = await fetchVersion(VERSION_CHECK_URL);
-    const targetVersion = getPureVersion(remoteVersionInfo.value.version);
+    const targetVersion = remoteVersionInfo.value.version;
     log.info("[+] Fetched version info:");
-    log.info(`      Version: ${remoteVersionInfo.value.version}`);
-    log.info(`      Version (Filtered): ${targetVersion}`);
+    log.info(`      Version: ${targetVersion}`);
     log.info(`      URL: ${toSafeUrl(remoteVersionInfo.value.url)}`);
-    const localBundleInfo = await readLocalBundleInfo(workingDir);
+    const localVersionInfo = await readLocalAppVersionInfo(workingDir);
     const needUpdateBundle = (() => {
-        if (!localBundleInfo) {
-            log.info("[*] No local bundle info found, need to update");
+        if (!localVersionInfo) {
+            log.info("[*] No local version info found, need to update");
             return true;
         }
-        log.info("[*] Local bundle info:");
-        log.info(`      Version: ${localBundleInfo.versionNumber}`);
-        log.info(
-            `      Application Version: ${localBundleInfo.applicationVersionNumber}`,
-        );
-        log.info(`      UUID: ${localBundleInfo.uuid}`);
-        log.info(`      Partitions: ${localBundleInfo.totalPartitions}`);
+        log.info("[*] Local version info:");
+        log.info(`      Version: ${localVersionInfo.value.version}`);
+        log.info(`      Url: ${localVersionInfo.value.url}`);
         const versionCompareResult = compareVersions(
-            localBundleInfo.versionNumber,
+            localVersionInfo.value.version,
             targetVersion,
         );
         if (versionCompareResult > 0) {
@@ -114,43 +93,7 @@ async function main(): Promise<Result> {
             shouldCommitDifficulties,
         };
     }
-    log.info("[*] Fetching bundle info");
-    const bundleInfo = await fetchBundleResponse(
-        TARGET_URL,
-        APP_VERSION_OVERRIDE ?? targetVersion,
-    ).then((bundleResponse) => {
-        return bundleResponse.value.orderedResults[0] ?? null;
-    });
-    if (!bundleInfo) {
-        log.error("[-] Failed to fetch bundle info, exiting");
-        return {
-            shouldCommitBundle: false,
-            status: 1,
-            shouldCommitDifficulties,
-        };
-    }
-    log.info("[+] Fetched bundle info:");
-    log.info(`      Application Version: ${bundleInfo.appVersion}`);
-    log.info(
-        `      Content Bundle Version: ${bundleInfo.contentBundleVersion}`,
-    );
-    log.info(`      Json Size: ${bundleInfo.jsonSize}`);
-    log.info(`      Bundle Partitions: ${bundleInfo.bundleParts.length}`);
-    for (const index in bundleInfo.bundleParts) {
-        const it = bundleInfo.bundleParts[index] ?? null;
-        if (!it) {
-            log.error(
-                `[-] Failed to fetch bundle part info for index ${index}, exiting`,
-            );
-            return {
-                shouldCommitBundle: false,
-                status: 1,
-                shouldCommitDifficulties,
-            };
-        }
-        log.info(`      Part ${index}: ${it.bundleSize} B`);
-    }
-    log.info("[*] Downloading apk and bundle files");
+    log.info("[*] Downloading apk");
     const bar = new cliProgress.MultiBar({
         clearOnComplete: false,
         hideCursor: true,
@@ -163,103 +106,24 @@ async function main(): Promise<Result> {
             bar.create(100, 0, { task: "apk.tmp" }),
         ),
         downloadFile(
-            bundleInfo.jsonUrl,
-            `${workingDir}/bundle.json`,
-            bar.create(100, 0, { task: "bundle.json" }),
+            VERSION_CHECK_URL,
+            `${workingDir}/app.json`,
+            bar.create(100, 0, { task: "app.json" }),
         ),
     ];
-    for (const it in bundleInfo.bundleParts) {
-        const part = bundleInfo.bundleParts[it] ?? null;
-        if (!part) {
-            log.error(
-                `[-] Failed to fetch bundle part info for index ${it}, exiting`,
-            );
-            return {
-                shouldCommitBundle: false,
-                status: 1,
-                shouldCommitDifficulties,
-            };
-        }
-        await downloadFile(
-            part.bundleUrl,
-            `${workingDir}/bundle_part_${it}.tmp`,
-            bar.create(100, 0, { task: `bundle_part_${it}.tmp` }),
-        );
-    }
     await Promise.all(promises);
     bar.stop();
     log.info("[+] Download complete");
-    log.info("[*] Extracting APK assets");
+    log.info("[*] Extracting APK assets: dynamic libraries");
     extractDirectory(`${workingDir}/apk.tmp`, "assets", workingDir);
     extractDirectory(
         `${workingDir}/apk.tmp`,
         "lib/arm64-v8a",
         `${workingDir}/lib.tmp`,
     );
+    log.info("[*] Extracting APK assets: assets");
+    extractDirectory(`${workingDir}/apk.tmp`, "assets", `${workingDir}/`);
     log.info("[+] Extracted APK assets");
-    const newBundleInfo = await readLocalBundleInfo(workingDir);
-    if (!newBundleInfo) {
-        log.error("[-] Failed to read new bundle info, exiting");
-        return {
-            shouldCommitBundle: false,
-            status: 1,
-            shouldCommitDifficulties,
-        };
-    }
-    log.info(`      Version: ${newBundleInfo.versionNumber}`);
-    log.info(
-        `      Application Version: ${newBundleInfo.applicationVersionNumber}`,
-    );
-    log.info(`      UUID: ${newBundleInfo.uuid}`);
-    log.info(`      Partitions: ${newBundleInfo.totalPartitions}`);
-    for (const index in newBundleInfo.added) {
-        const it = newBundleInfo.added[index] ?? null;
-        if (!it) {
-            log.error(
-                `[-] Failed to fetch new bundle part info for index ${index}, exiting`,
-            );
-            return {
-                shouldCommitBundle: false,
-                status: 1,
-                shouldCommitDifficulties,
-            };
-        }
-        const partFile = `${workingDir}/bundle_part_${it.partIndex}.tmp`;
-        if (!fs.existsSync(partFile)) {
-            log.error(
-                `[-] Bundle part file ${partFile} does not exist, exiting`,
-            );
-            return {
-                shouldCommitBundle: false,
-                status: 1,
-                shouldCommitDifficulties,
-            };
-        }
-        const buffer = await readFileStream(partFile, it.byteOffset, it.length);
-        const sha256Hash = crypto
-            .createHash("sha256")
-            .update(buffer)
-            .digest("base64");
-        if (sha256Hash !== it.sha256HashBase64Encoded) {
-            log.error(
-                `[-] SHA256 hash mismatch for ${partFile} (expected: ${it.sha256HashBase64Encoded}, got: ${sha256Hash}), exiting`,
-            );
-            return {
-                shouldCommitBundle: false,
-                status: 1,
-                shouldCommitDifficulties,
-            };
-        }
-        fs.mkdirSync(path.dirname(`${workingDir}/${it.path}`), {
-            recursive: true,
-        });
-        fs.writeFileSync(`${workingDir}/${it.path}`, buffer);
-        process.stdout.write(".");
-    }
-    console.log("");
-    log.info(
-        `[+] Bundle extraction complete: ${newBundleInfo.added.length} files`,
-    );
     fs.writeFileSync(`${workingDir}/.gitignore`, "*.tmp\n");
     log.info("[+] Git ignore file created");
     return { shouldCommitBundle: true, status: 0, shouldCommitDifficulties };
