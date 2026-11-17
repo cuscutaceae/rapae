@@ -1,43 +1,74 @@
-import AdmZip from "adm-zip";
-import path from "path";
-import * as fs from "fs";
+import { createWriteStream } from "node:fs";
+import { mkdir, mkdtemp, rename, rm } from "node:fs/promises";
+import path from "node:path";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { crc32 } from "node:zlib";
+import { openPromise } from "yauzl";
+import type { Entry, ZipFile } from "yauzl";
 
-function extractDirectory(
+async function extractFile(zip: ZipFile, entry: Entry, targetPath: string) {
+    const parentDir = path.dirname(targetPath);
+    await mkdir(parentDir, { recursive: true });
+    const tempDir = await mkdtemp(path.join(parentDir, ".extract-"));
+    const tempPath = path.join(tempDir, "entry");
+
+    try {
+        let checksum = 0;
+        const verifyChecksum = new Transform({
+            transform(chunk: Buffer, _encoding, callback) {
+                checksum = crc32(chunk, checksum);
+                callback(null, chunk);
+            },
+        });
+        const source = await zip.openReadStreamPromise(entry);
+        await pipeline(source, verifyChecksum, createWriteStream(tempPath));
+        if (checksum !== entry.crc32) {
+            throw new Error(`CRC32 mismatch: ${entry.fileName}`);
+        }
+        await rename(tempPath, targetPath);
+    } finally {
+        await rm(tempDir, { recursive: true, force: true });
+    }
+}
+
+async function extractDirectory(
     zipPath: string,
     sourceDir: string,
     targetDir: string,
-): void {
-    const zip = new AdmZip(zipPath);
-    const entries = zip.getEntries();
-    if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-    }
-    const targetEntries = entries.filter(
-        (entry) =>
-            entry.entryName.startsWith(sourceDir + "/") ||
-            entry.entryName === sourceDir,
-    );
-    if (targetEntries.length === 0) {
-        console.warn(`directory not found: ${sourceDir}`);
-        return;
-    }
-    targetEntries.forEach((entry) => {
-        const relativePath = entry.entryName.replace(sourceDir + "/", "");
-        if (!relativePath) return;
-        const targetPath = path.join(targetDir, relativePath);
-        if (entry.isDirectory) {
-            if (!fs.existsSync(targetPath)) {
-                fs.mkdirSync(targetPath, { recursive: true });
+): Promise<void> {
+    const zip = await openPromise(zipPath, { autoClose: false });
+    const prefix = `${sourceDir}/`;
+    let found = false;
+
+    try {
+        await mkdir(targetDir, { recursive: true });
+        for await (const entry of zip.eachEntry()) {
+            const { fileName } = entry;
+            if (!fileName.startsWith(prefix) && fileName !== sourceDir) {
+                continue;
             }
-        } else {
-            const content = entry.getData();
-            const dir = path.dirname(targetPath);
-            if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
+            found = true;
+            const relativePath = fileName.startsWith(prefix)
+                ? fileName.slice(prefix.length)
+                : fileName;
+            if (!relativePath) {
+                continue;
             }
-            fs.writeFileSync(targetPath, content);
+            const targetPath = path.join(targetDir, relativePath);
+            if (fileName.endsWith("/")) {
+                await mkdir(targetPath, { recursive: true });
+            } else {
+                await extractFile(zip, entry, targetPath);
+            }
         }
-    });
+    } finally {
+        zip.close();
+    }
+
+    if (!found) {
+        console.warn(`directory not found: ${sourceDir}`);
+    }
 }
 
 export { extractDirectory };

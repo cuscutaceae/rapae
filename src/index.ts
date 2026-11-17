@@ -99,31 +99,29 @@ async function main(): Promise<Result> {
         hideCursor: true,
         format: " {bar} | {task} | {value}/{total}",
     });
+    const apkPath = `${workingDir}/apk.tmp`;
+    const pendingVersionPath = `${workingDir}/app.json.tmp`;
     let promises: Promise<void>[] = [
         downloadFile(
             remoteVersionInfo.value.url,
-            `${workingDir}/apk.tmp`,
+            apkPath,
             bar.create(100, 0, { task: "apk.tmp" }),
         ),
         downloadFile(
             VERSION_CHECK_URL,
-            `${workingDir}/app.json`,
+            pendingVersionPath,
             bar.create(100, 0, { task: "app.json" }),
         ),
     ];
     await Promise.all(promises);
     bar.stop();
     log.info("[+] Download complete");
-    log.info("[*] Extracting APK assets: dynamic libraries");
-    extractDirectory(`${workingDir}/apk.tmp`, "assets", workingDir);
-    extractDirectory(
-        `${workingDir}/apk.tmp`,
-        "lib/arm64-v8a",
-        `${workingDir}/lib.tmp`,
-    );
     log.info("[*] Extracting APK assets: assets");
-    extractDirectory(`${workingDir}/apk.tmp`, "assets", `${workingDir}/`);
+    await extractDirectory(apkPath, "assets", workingDir);
+    log.info("[*] Extracting APK assets: dynamic libraries");
+    await extractDirectory(apkPath, "lib/arm64-v8a", `${workingDir}/lib.tmp`);
     log.info("[+] Extracted APK assets");
+    await fs.promises.rename(pendingVersionPath, `${workingDir}/app.json`);
     fs.writeFileSync(`${workingDir}/.gitignore`, "*.tmp\n");
     log.info("[+] Git ignore file created");
     return { shouldCommitBundle: true, status: 0, shouldCommitDifficulties };
