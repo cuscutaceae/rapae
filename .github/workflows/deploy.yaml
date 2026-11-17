@@ -132,6 +132,7 @@ jobs:
             - name: Upload assets to S3
               if: (steps.extract.outputs.shouldCommitBundle == 'true' || steps.extract.outputs.shouldCommitDifficulties == 'true') && env.ENABLE_CLOUD_STORAGE == 'true'
               env:
+                  AWS_REGION: auto
                   AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
                   AWS_BUCKET_NAME: ${{ secrets.AWS_BUCKET_NAME }}
                   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
